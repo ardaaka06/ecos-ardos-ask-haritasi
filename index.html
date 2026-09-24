@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Aşk Haritamız - Ecoş & Ardoş</title>
+
+  <!-- Görselleri En Yüksek Öncelikle Ön Yükleme (Preload) -->
+  <link rel="preload" as="image" href="https://i.ibb.co/F4175KR3/3c1beb88-d118-4c7d-a890-ac8e58cea5e8-Photoroom.webp" fetchpriority="high">
+  <link rel="preload" as="image" href="https://i.ibb.co/JwQLHc9V/822-C1-C79-6-CCD-4296-8-F47-83878-DBC8196-Photoroom.png" fetchpriority="high">
+  <link rel="preload" as="image" href="https://i.ibb.co/QhBFqVM/35d46ccd-7436-4f4e-8af9-0c305dcf65ec.webp" fetchpriority="high">
+
+  <!-- Leaflet Harita Kütüphanesi -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin=""/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
+
+  <!-- Tone.js (Akustik Piyano ve Ses Motoru) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+  <!-- Yazı Tipleri -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Caveat:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600;1,700&family=Karla:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --envelope-direct-url: url('https://i.ibb.co/F4175KR3/3c1beb88-d118-4c7d-a890-ac8e58cea5e8-Photoroom.webp');
+      --seal-direct-url: url('https://i.ibb.co/JwQLHc9V/822-C1-C79-6-CCD-4296-8-F47-83878-DBC8196-Photoroom.png');
+      --splash-bg-url: url('https://i.ibb.co/QhBFqVM/35d46ccd-7436-4f4e-8af9-0c305dcf65ec.webp');
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { 
+      height: 100%; 
+      width: 100%; 
+      overflow: hidden; 
+      font-family: 'Karla', sans-serif; 
+      background: #0b1120; 
+      position: fixed; 
+      inset: 0;
+    }
+
+    /* HARİTA: Kenarlarda boşluk kalmaması için tüm ekranı ve çentik arkasını kaplar */
+    #map { 
+      position: fixed; 
+      inset: 0; 
+      width: 100vw; 
+      height: 100%; 
+      height: 100dvh; 
+      z-index: 1; 
+    }
+
+    /* ========================================================
+       1. AŞAMA: KAPALI ZARF VE MÜHÜR (VARSAYILAN / MOBİL BOYUT)
+       ======================================================== */
+    .outer-envelope-overlay {
+      position: fixed; inset: 0; z-index: 9500;
+      background: radial-gradient(circle at center, #2e020c 0%, #150106 65%, #050002 100%);
+      display: flex; align-items: center; justify-content: center; padding: 15px;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      transition: opacity 0.75s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.75s ease;
+    }
+    .outer-envelope-overlay.hidden {
+      opacity: 0; visibility: hidden; pointer-events: none;
+    }
+
+    /* Mobilde Orijinal 440px Zarf */
+    .outer-envelope-wrap {
+      position: relative; 
+      width: min(90vw, 440px); 
+      aspect-ratio: 4/5;
+      background-image: var(--envelope-direct-url);
+      background-size: contain; 
+      background-position: center; 
+      background-repeat: no-repeat;
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      filter: drop-shadow(0 35px 80px rgba(0,0,0,0.95)) drop-shadow(0 0 45px rgba(136, 19, 55, 0.45));
+      transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s ease;
+    }
+    .outer-envelope-overlay.opened .outer-envelope-wrap {
+      transform: scale(1.03);
+    }
+
+    /* Mobilde Orijinal 140px Mühür Çapası */
+    .outer-seal-anchor {
+      position: absolute; 
+      top: 56%; 
+      left: 50%; 
+      transform: translate(-50%, -50%);
+      width: 140px; 
+      height: 140px; 
+      z-index: 10; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      cursor: pointer;
+      transition: width 0.3s ease, height 0.3s ease;
+    }
+
+    /* Mobilde Orijinal 140px Dönen Altın Fısıltı */
+    .seal-halo-svg {
+      position: absolute; 
+      width: 140px; 
+      height: 140px; 
+      pointer-events: none;
+      animation: rotateHalo 18s linear infinite; 
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+      transition: opacity 0.3s ease, width 0.3s ease, height 0.3s ease;
+    }
+    @keyframes rotateHalo { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .outer-seal-anchor.broken .seal-halo-svg { opacity: 0; }
+
+    /* Mobilde Orijinal 114px Mühür Gövdesi */
+    .outer-seal-box {
+      position: relative; 
+      width: 114px; 
+      height: 114px; 
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), width 0.3s ease, height 0.3s ease;
+      filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.85));
+    }
+    .outer-seal-anchor:hover .outer-seal-box { transform: scale(1.05); }
+
+    /* Başlangıçtaki Tek Parça Kusursuz Mühür */
+    .outer-seal-intact {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      background-image: var(--seal-direct-url);
+      background-size: contain; background-position: center; background-repeat: no-repeat;
+      z-index: 2;
+      transition: opacity 0.1s ease;
+    }
+
+    /* Kırılma Parçaları */
+    .outer-seal-split {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      z-index: 1; pointer-events: none;
+    }
+
+    .outer-seal-half {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      opacity: 1;
+      transform: translate(0, 0) rotate(0deg);
+      transition: transform 0.75s cubic-bezier(0.2, 0.8, 0.25, 1), opacity 0.65s ease 0.1s;
+    }
+    .outer-seal-half.left-half {
+      clip-path: polygon(0 0, 50% 0, 46% 25%, 53% 50%, 45% 75%, 50% 100%, 0 100%);
+    }
+    .outer-seal-half.right-half {
+      clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%, 45% 75%, 53% 50%, 46% 25%);
+    }
+
+    .outer-seal-half-img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      background-image: var(--seal-direct-url);
+      background-size: contain; background-position: center; background-repeat: no-repeat;
+    }
+
+    /* Mobilde Kırılma Savrulması */
+    .outer-seal-anchor.broken .outer-seal-intact { opacity: 0; visibility: hidden; }
+    .outer-seal-anchor.broken .outer-seal-half.left-half {
+      transform: translate(-45px, -15px) rotate(-26deg);
+      opacity: 0;
+    }
+    .outer-seal-anchor.broken .outer-seal-half.right-half {
+      transform: translate(45px, 15px) rotate(26deg);
+      opacity: 0;
+    }
+
+    /* ========================================================
+       BİLGİSAYAR / GENİŞ EKRANLAR İÇİN 1.5 KAT BOYUTLAR (min-width: 769px)
+       ======================================================== */
+    @media (min-width: 769px) {
+      .outer-envelope-wrap {
+        width: min(90vw, 660px);
+      }
+
+      .outer-seal-anchor,
+      .seal-halo-svg {
+        width: 210px;
+        height: 210px;
+      }
+
+      .outer-seal-box {
+        width: 171px;
+        height: 171px;
+      }
+
+      .outer-seal-anchor.broken .outer-seal-half.left-half {
+        transform: translate(-65px, -20px) rotate(-26deg);
+      }
+      .outer-seal-anchor.broken .outer-seal-half.right-half {
+        transform: translate(65px, 20px) rotate(26deg);
+      }
+
+      .splash-overlay {
+        background-image: none !important;
+        background: radial-gradient(circle at center, #2e020c 0%, #150106 65%, #050002 100%) !important;
+      }
+      .splash-overlay::after {
+        content: '';
+        position: absolute;
+        width: min(480px, 90vw);
+        height: 92vh;
+        max-height: 820px;
+        background-image: var(--splash-bg-url);
+        background-size: cover;
+        background-position: center;
+        border-radius: 32px;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.9), 0 0 40px rgba(225, 29, 72, 0.25);
+        border: 1px solid rgba(244, 63, 94, 0.3);
+        pointer-events: none;
+        z-index: 1;
+      }
+    }
+
+    /* ========================================================
+       2. AŞAMA: ECOŞ & ARDOŞ MEKTUP KARTI (TELEFONDA TAM EKRAN KAPLAR)
+       ======================================================== */
+    .splash-overlay {
+      position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh;
+      background-color: #1a0108;
+      background-image: var(--splash-bg-url);
+      background-size: cover; 
+      background-position: center; 
+      background-repeat: no-repeat;
+      z-index: 5000; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      padding: 20px;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      transition: opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.85s ease, transform 0.85s ease;
+      overflow-y: auto; 
+      overscroll-behavior: none;
+    }
+    .splash-overlay.hidden { opacity: 0; visibility: hidden; transform: scale(1.04); pointer-events: none; }
+
+    .envelope-card {
+      position: relative; max-width: 440px; width: 100%; background: #fdfbf7;
+      background-image: radial-gradient(#e2d9c8 0.75px, transparent 0.75px); background-size: 16px 16px;
+      border: 1px solid #e7ded0; box-shadow: 0 35px 80px rgba(0, 0, 0, 0.8), 0 0 35px rgba(225, 29, 72, 0.2);
+      border-radius: 20px; padding: 50px 28px 34px; text-align: center; color: #1e293b;
+      animation: envelopeAppear 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 2;
+    }
+    @keyframes envelopeAppear {
+      from { opacity: 0; transform: translateY(30px) scale(0.94); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .envelope-card::before {
+      content: ''; position: absolute; top: 10px; left: 10px; right: 10px; bottom: 10px;
+      border: 1px solid rgba(190, 18, 60, 0.25); border-radius: 14px; pointer-events: none;
+    }
+    
+    /* Kalp Rozeti: Sadece görsel, düz çizgili, asla emojiye dönüşmeyen SVG */
+    .wax-seal-wrap { 
+      position: absolute; 
+      top: -34px; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      z-index: 5; 
+      pointer-events: none;
+      user-select: none;
+    }
+    .wax-seal {
+      width: 68px; height: 68px; background: radial-gradient(circle at 35% 35%, #f43f5e 0%, #be123c 65%, #881337 100%);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 25px rgba(190, 18, 60, 0.65), inset 0 2px 4px rgba(255, 255, 255, 0.4), inset 0 -3px 6px rgba(0,0,0,0.4);
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      cursor: default; 
+      animation: sealPulse 2.8s infinite ease-in-out;
+    }
+    @keyframes sealPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 10px 25px rgba(190, 18, 60, 0.6); }
+      50% { transform: scale(1.06); box-shadow: 0 14px 32px rgba(225, 29, 72, 0.85); }
+    }
+    .wax-ribbon {
+      position: absolute; top: 50px; left: 50%; transform: translateX(-50%); width: 22px; height: 30px;
+      background: linear-gradient(to bottom, #9f1239, #881337); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+      z-index: -1; opacity: 0.9;
+    }
+
+    .splash-title {
+      font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 2.35rem; font-weight: 700;
+      color: #881337; line-height: 1.15; margin-top: 8px; margin-bottom: 14px;
+    }
+    .splash-divider { width: 60px; height: 1.5px; background: #e2d4be; margin: 0 auto 18px; position: relative; }
+    .splash-divider::after {
+      content: '❦'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%);
+      background: #fdfbf7; padding: 0 6px; color: #be123c; font-size: 0.85rem;
+    }
+    .splash-quote {
+      font-family: 'Alex Brush', cursive; font-size: 1.65rem; color: #1e293b; line-height: 1.4;
+      margin-bottom: 20px; padding: 0 14px; letter-spacing: 0.4px;
+    }
+    .splash-counter-tag {
+      display: inline-block; background: #ffe4e6; border: 1px dashed #f43f5e; color: #be123c;
+      padding: 6px 18px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; margin-bottom: 24px;
+    }
+    .splash-actions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+    .splash-enter-btn {
+      background: linear-gradient(135deg, #e11d48, #be123c); color: #fff; border: none; padding: 14px 28px;
+      border-radius: 28px; font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 1.45rem;
+      font-weight: 700; cursor: pointer; box-shadow: 0 8px 25px rgba(225, 29, 72, 0.45); transition: all 0.25s ease;
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; max-width: 280px; margin: 0 auto;
+    }
+    .splash-enter-btn:hover {
+      transform: translateY(-2px); box-shadow: 0 12px 30px rgba(225, 29, 72, 0.6);
+    }
+    .splash-globe-icon { font-style: normal; display: inline-block; font-size: 1.35rem; }
+
+    /* ========================================================
+       SİNEMA OVERLAY VE HARİTA ARAYÜZÜ
+       ======================================================== */
+    .cinematic-overlay {
+      position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+      z-index: 900; opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
+    }
+    .cinematic-overlay.active { opacity: 1; pointer-events: auto; }
+
+    /* ÜST MENÜ: DYNAMIC ISLAND SINIRINA TAM OTURTULDU VE DAHA DERLİ TOPLU YAPILDI */
+    .top-bar {
+      display: none;
+      position: fixed; 
+      top: max(env(safe-area-inset-top, 0px), 10px); 
+      left: 12px; 
+      right: 12px; 
+      margin: 0 auto;
+      max-width: 440px; 
+      z-index: 1000; 
+      background: rgba(15, 23, 42, 0.92); 
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 8px 14px 10px; 
+      border-radius: 20px; 
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      flex-direction: column; 
+      align-items: center; 
+      gap: 8px; 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.85); 
+      color: #fff;
+    }
+    .top-bar.active-bar {
+      display: flex;
+    }
+    .top-header-wrap { display: flex; align-items: center; justify-content: center; width: 100%; position: relative; }
+    .top-bar h1 {
+      font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 700; font-size: 1.35rem;
+      margin: 0; text-align: center; color: #fff5f6; letter-spacing: 0.4px;
+    }
+    .relationship-counter { font-size: 0.72rem; color: #fca5a5; font-weight: 500; text-align: center; margin-top: 1px; }
+
+    .header-action-btn {
+      position: absolute; top: 50%; transform: translateY(-50%); background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(244, 63, 94, 0.4); color: #fca5a5; width: 34px; height: 34px;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;
+      font-size: 1rem; transition: all 0.3s ease;
+    }
+    .music-btn { left: 0; }
+    .music-btn.playing { background: #e11d48; color: #fff; box-shadow: 0 0 12px rgba(225, 29, 72, 0.6); }
+
+    .btn-group { display: flex; gap: 8px; width: 100%; }
+    .btn {
+      flex: 1; background: linear-gradient(135deg, #e11d48, #be123c); color: white; border: none;
+      padding: 7px 10px; border-radius: 16px; font-family: 'Cormorant Garamond', serif; font-style: italic;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .btn-outline { background: transparent; border: 1px solid #e11d48; color: #fca5a5; }
+
+    @media (min-width: 600px) {
+      .top-bar {
+        top: 20px;
+        max-width: 620px;
+        padding: 8px 18px;
+      }
+      .top-bar.active-bar { 
+        flex-direction: row; 
+        border-radius: 50px; 
+        justify-content: space-between; 
+      }
+      .top-header-wrap { width: auto; justify-content: flex-start; padding-left: 44px; }
+      .btn-group { width: auto; }
+      .btn { flex: initial; padding: 7px 16px; }
+    }
+
+    /* ========================================================
+       VEKTÖREL VE TELEFONDA ASLA EMOJİYE DÖNÜŞMEYEN PİNLER
+       ======================================================== */
+    .custom-pin-container { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 180px; height: 70px; pointer-events: none; }
+    .city-label {
+      font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 1.1rem;
+      letter-spacing: 0.3px; color: #fff5f6; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.85);
+      margin-bottom: 5px; pointer-events: none;
+    }
+    .pin-wrap { pointer-events: auto; }
+
+    /* Normal Kalp Pini */
+    .custom-heart-pin {
+      width: 34px; height: 34px; background: #f43f5e; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 15px rgba(244, 63, 94, 0.85);
+    }
+    .custom-heart-pin::after {
+      content: ''; width: 16px; height: 16px; background-color: #ffffff;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") no-repeat center / contain;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") no-repeat center / contain;
+      transform: rotate(45deg);
+    }
+
+    /* Uçak Pini */
+    .custom-travel-pin {
+      width: 34px; height: 34px; background: linear-gradient(135deg, #e11d48, #9f1239); border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 2px solid #fed7aa;
+      box-shadow: 0 0 18px rgba(225, 29, 72, 0.95);
+    }
+    .custom-travel-pin::after {
+      content: ''; width: 16px; height: 16px; background-color: #ffffff;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E") no-repeat center / contain;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E") no-repeat center / contain;
+      transform: rotate(45deg);
+    }
+
+    /* Altın Hayal Pini */
+    .custom-gold-pin {
+      width: 34px; height: 34px; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 2px solid #fef3c7;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.95);
+    }
+    .custom-gold-pin::after {
+      content: ''; width: 16px; height: 16px; background-color: #fffbeb;
+      -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") no-repeat center / contain;
+      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") no-repeat center / contain;
+      transform: rotate(45deg);
+    }
+
+    /* Kavisli Uçuş Yayları Stili */
+    .flight-arc {
+      stroke-dasharray: 8, 8;
+      animation: flightPulse 2.2s linear infinite;
+      filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.9));
+      pointer-events: auto;
+    }
+    @keyframes flightPulse { to { stroke-dashoffset: -32; } }
+
+    /* Polaroid Kart */
+    .memory-panel {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -40%); width: 90%; max-width: 380px;
+      background: #fff; color: #0f172a; padding: 16px; border-radius: 12px; z-index: 1000; box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+      display: none; opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .memory-panel.show { display: block; opacity: 1; transform: translate(-50%, -50%); }
+    .polaroid-deck-wrap { position: relative; width: 100%; height: 230px; margin-bottom: 12px; border-radius: 8px; overflow: hidden; background: #1e293b; }
+    .panel-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .deck-counter { position: absolute; bottom: 10px; right: 10px; background: rgba(15, 23, 42, 0.75); color: #fff; font-size: 0.7rem; padding: 3px 8px; border-radius: 12px; }
+    .deck-btn {
+      position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.2rem; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .deck-btn.prev-btn { left: 8px; }
+    .deck-btn.next-btn { right: 8px; }
+    .panel-meta-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .panel-date { font-size: 0.75rem; color: #e11d48; font-weight: 700; text-transform: uppercase; }
+    .panel-badge { font-size: 0.7rem; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+    .badge-memory { background: #ffe4e6; color: #e11d48; }
+    .badge-travel { background: #ffedd5; color: #c2410c; }
+    .badge-dream { background: #fef3c7; color: #b45309; }
+
+    .flight-route-info {
+      font-size: 0.8rem; font-weight: 700; color: #881337; background: #fff1f2; border: 1px dashed #f43f5e;
+      padding: 4px 10px; border-radius: 8px; margin-top: 5px; display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    .panel-city { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 1rem; color: #64748b; }
+    .panel-title { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 1.5rem; margin: 4px 0 8px; }
+    .panel-desc { font-family: 'Caveat', cursive; font-size: 1.35rem; color: #334155; line-height: 1.5; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #f43f5e; }
+
+    .souvenir-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .souvenir-btn {
+      flex: 1; padding: 7px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 8px; border: 1px solid #cbd5e1;
+      background: #f8fafc; color: #334155; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .fulfill-btn { width: 100%; margin-top: 10px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 9px; border-radius: 10px; font-weight: 600; font-size: 0.85rem; cursor: pointer; display: none; }
+    .close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; }
+    .delete-link { display: block; text-align: right; margin-top: 8px; background: none; border: none; font-size: 0.75rem; color: #cbd5e1; opacity: 0.6; cursor: pointer; }
+
+    /* Modallar (Bilet & Gazete) */
+    .submodal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px); z-index: 2500; display: none; align-items: center; justify-content: center; padding: 15px;
+    }
+    .boarding-pass { background: #fdfbf7; color: #1e293b; border-radius: 18px; width: 100%; max-width: 420px; box-shadow: 0 25px 60px rgba(0,0,0,0.6); overflow: hidden; border: 1px solid #e7dfd5; }
+    .ticket-header { background: linear-gradient(135deg, #be123c, #881337); color: #fff; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
+    .ticket-logo { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 700; font-size: 1.25rem; }
+    .ticket-type { font-size: 0.7rem; background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 4px; }
+    .ticket-body { padding: 18px 20px; }
+    .ticket-route { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed #cbd5e1; }
+    .station-city { font-family: 'Cormorant Garamond', serif; font-size: 1.45rem; font-weight: 700; color: #881337; }
+    .station-label { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; }
+    .ticket-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+    .tf-label { font-size: 0.65rem; text-transform: uppercase; color: #64748b; font-weight: 600; }
+    .tf-value { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-top: 2px; }
+    .editable-field {
+      border-bottom: 1px solid transparent; outline: none; padding: 1px 4px; border-radius: 4px;
+      transition: background 0.2s ease, border-color 0.2s ease; cursor: text;
+    }
+    .editable-field:hover { background: rgba(225, 29, 72, 0.06); }
+    .editable-field:focus { background: rgba(225, 29, 72, 0.12); border-bottom: 1px solid rgba(225, 29, 72, 0.35); }
+    .ticket-stub { background: #f8f5ee; border-top: 2px dashed #d1c7b7; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; }
+    .barcode { font-family: 'Space Mono', monospace; font-size: 0.75rem; letter-spacing: 3px; color: #334155; }
+    .stamp-circle { border: 2px solid #e11d48; color: #e11d48; border-radius: 50%; width: 48px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 800; transform: rotate(-15deg); }
+    
+    .modal-bottom-bar { 
+      display: flex; justify-content: flex-end; padding: 8px 14px; background: transparent; 
+      border-top: 1px solid rgba(120, 113, 108, 0.18); 
+    }
+    .save-sub-btn { 
+      background: rgba(136, 19, 55, 0.08); color: #881337; border: 1px solid rgba(136, 19, 55, 0.35); 
+      padding: 5px 14px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; 
+      font-family: 'Karla', sans-serif; letter-spacing: 0.3px; transition: all 0.2s ease;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .save-sub-btn:hover {
+      background: #881337; color: #fff; border-color: #881337; box-shadow: 0 2px 6px rgba(136, 19, 55, 0.25);
+    }
+
+    /* Gazete */
+    .retro-newspaper { background: #f5eedc; color: #1c1917; border-radius: 12px; width: 100%; max-width: 450px; padding: 20px 22px; border: 1px solid #d7ccb6; font-family: 'Playfair Display', serif; }
+    .news-masthead { text-align: center; border-bottom: 3px double #1c1917; padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .news-dice-btn { background: transparent; border: 1px solid #78716c; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; }
+    .news-meta-strip { display: flex; justify-content: space-between; font-size: 0.7rem; font-family: 'Karla', sans-serif; border-bottom: 1px solid #1c1917; padding: 4px 0 6px; margin-bottom: 12px; }
+    .news-weather-box { background: rgba(0,0,0,0.04); border: 1px dashed #78716c; padding: 8px 12px; border-radius: 6px; font-family: 'Karla', sans-serif; font-size: 0.82rem; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 10px; }
+    .news-headline { font-size: 1.35rem; font-style: italic; line-height: 1.25; margin-bottom: 10px; font-weight: 700; text-align: center; color: #881337; }
+    .news-content { font-family: 'Caveat', cursive; font-size: 1.35rem; line-height: 1.45; color: #292524; padding: 10px; background: rgba(255,255,255,0.55); border-radius: 6px; margin-bottom: 12px; border-left: 2px solid #881337; }
+
+    .news-footer {
+      font-family: 'Karla', sans-serif; font-size: 0.75rem; text-align: center; color: #78716c;
+      font-style: italic; padding-top: 8px; border-top: 1px solid #d7ccb6; margin-top: 6px;
+    }
+
+    /* Modal Form */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 15px; }
+    .modal-box { background: #0f172a; padding: 20px; border-radius: 15px; width: 100%; max-width: 430px; border: 1px solid #e11d48; color: #fff; }
+    .modal-box h2 { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; margin-bottom: 12px; color: #fca5a5; }
+    .type-selector { display: flex; gap: 6px; margin-bottom: 14px; background: #1e293b; padding: 4px; border-radius: 12px; }
+    .type-pill { flex: 1; background: transparent; border: none; color: #94a3b8; padding: 7px 4px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: center; }
+    .type-pill.active-memory { background: #e11d48; color: #fff; }
+    .type-pill.active-travel { background: #ea580c; color: #fff; }
+    .type-pill.active-dream { background: #d97706; color: #fff; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #94a3b8; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #fff; font-family: inherit; font-size: 0.9rem; }
+    .form-group textarea { height: 70px; resize: none; }
+
+    /* Çoklu Kalkış Şehri Hap Butonları */
+    .origin-pill-group {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-height: 130px;
+      overflow-y: auto; padding-right: 4px;
+    }
+    .origin-pill {
+      background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 6px 12px;
+      border-radius: 16px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+      user-select: none; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .origin-pill:hover { border-color: #f43f5e; color: #fff; }
+    .origin-pill.selected {
+      background: linear-gradient(135deg, #e11d48, #be123c); border-color: #f43f5e; color: #fff;
+      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.4);
+    }
+    .origin-custom-row { display: flex; gap: 6px; margin-top: 8px; }
+    .origin-custom-input {
+      flex: 1; padding: 7px 12px !important; font-size: 0.82rem !important; border-radius: 8px;
+      background: #0f172a !important; border: 1px solid #334155 !important; color: #fff;
+    }
+    .origin-custom-btn {
+      background: #334155; border: 1px solid #475569; color: #fca5a5; font-weight: 700;
+      font-size: 0.8rem; padding: 7px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+    .origin-custom-btn:hover { background: #e11d48; color: #fff; border-color: #f43f5e; }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+    .toast { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.9); border: 1px solid #f43f5e; color: #fff; padding: 10px 20px; border-radius: 30px; z-index: 1000; display: none; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================
+       1. AŞAMA: GERÇEK KAPALI ZARF VE MÜHÜR KATMANI
+       ======================================================== -->
+  <div class="outer-envelope-overlay" id="outerEnvelopeOverlay">
+    <div class="outer-envelope-wrap">
+      
+      <!-- Tek Parça Mühür ve Kırılma Alanı (Mobilde 140px, PC'de 210px) -->
+      <div class="outer-seal-anchor" id="outerSealAnchor" onclick="window.breakOuterSeal()">
+        <!-- Dönen Altın Fısıltı -->
+        <svg class="seal-halo-svg" viewBox="0 0 140 140">
+          <path id="sealHaloPath" d="M 70, 70 m -58, 0 a 58,58 0 1,1 116,0 a 58,58 0 1,1 -116,0" fill="none" />
+          <text font-family="'Cormorant Garamond', serif" font-size="8.8" font-weight="700" fill="#fde047" letter-spacing="3.2px">
+            <textPath href="#sealHaloPath" startOffset="50%" text-anchor="middle">
+              MÜHRÜ AÇMAK İÇİN DOKUN ❦
+            </textPath>
+          </text>
+        </svg>
+
+        <div class="outer-seal-box">
+          <!-- Başlangıçtaki Tek Parça Kusursuz Mühür -->
+          <div class="outer-seal-intact"></div>
+
+          <!-- Kırılma Anında İkiye Ayrılan Parçalar -->
+          <div class="outer-seal-split">
+            <div class="outer-seal-half left-half">
+              <div class="outer-seal-half-img"></div>
+            </div>
+            <div class="outer-seal-half right-half">
+              <div class="outer-seal-half-img"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================
+       2. AŞAMA: ECOŞ & ARDOŞ MEKTUP KARTI (ÖZEL GÖRSEL ARKA PLANLI)
+       ======================================================== -->
+  <div class="splash-overlay" id="splashOverlay">
+    <div class="envelope-card">
+      <!-- Kalp Rozeti: Sadece görsel, düz çizgili, asla emojiye dönüşmeyen saf SVG -->
+      <div class="wax-seal-wrap">
+        <div class="wax-seal">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="#ffffff" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </div>
+        <div class="wax-ribbon"></div>
+      </div>
+
+      <h1 class="splash-title">Ecoş &amp; Ardoş Haritası</h1>
+      <div class="splash-divider"></div>
+      <p class="splash-quote">"Birlikte yaşadığımız en güzel ve en unutulmaz anılarımız"</p>
+      <div class="splash-counter-tag" id="splashCounter">Birlikte 620 muhteşem gün!</div>
+      
+      <!-- Haritayı Aç Butonu -->
+      <div class="splash-actions">
+        <button type="button" class="splash-enter-btn" onclick="window.enterMap(true)">
+          <span>Haritayı Aç</span> <span class="splash-globe-icon">🌍</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cinematic-overlay" id="cinematicOverlay" onclick="closeCard()"></div>
+
+  <!-- Üst Menü: Harita açılana kadar gizlidir; açıldığında Dynamic Island sınırına tam oturur -->
+  <div class="top-bar" id="mainTopBar">
+    <div class="top-header-wrap">
+      <button class="header-action-btn music-btn" id="musicBtn" onclick="window.toggleMusic()" title="Müzik"><span>🎵</span></button>
+      <div>
+        <h1 id="topBarTitle">Aşk Haritamız</h1>
+        <div class="relationship-counter" id="relCounter">Günler sayılıyor...</div>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn" onclick="playStory()">Anıları Gez</button>
+      <button class="btn btn-outline" id="addBtn" onclick="toggleAddMode()">+ Yeni Anı Ekle</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+  <div class="toast" id="toastMsg">Haritada noktanın geçtiği yere tıklayın.</div>
+
+  <!-- Polaroid Kart -->
+  <div id="memoryCard" class="memory-panel">
+    <button class="close-btn" onclick="closeCard()">×</button>
+    <div class="polaroid-deck-wrap" id="deckWrap">
+      <img id="c-img" class="panel-img" src="" alt="Anı">
+      <div class="deck-counter" id="deckCounter">1 / 1</div>
+      <button type="button" class="deck-btn prev-btn" id="deckPrev" onclick="window.navDeck(-1)">‹</button>
+      <button type="button" class="deck-btn next-btn" id="deckNext" onclick="window.navDeck(1)">›</button>
+    </div>
+    <div class="panel-meta-bar">
+      <div id="c-date" class="panel-date"></div>
+      <div id="c-badge" class="panel-badge"></div>
+    </div>
+    <div id="c-city" class="panel-city"></div>
+    <div id="c-flight-route" class="flight-route-info" style="display:none;"></div>
+    <div id="c-title" class="panel-title"></div>
+    <div id="c-desc" class="panel-desc"></div>
+
+    <div class="souvenir-actions">
+      <button type="button" class="souvenir-btn" id="ticketActionBtn" onclick="window.openBoardingPass()">🎫 Hatıra Bileti</button>
+      <button type="button" class="souvenir-btn" onclick="window.openNewspaper()">📰 O Gün Ne Oldu?</button>
+    </div>
+    <button id="fulfillBtn" class="fulfill-btn" onclick="fulfillCurrentDream()">✨ Bu Hayali Gerçekleştirdik!</button>
+    <button class="delete-link" onclick="deleteCurrentMemory()">Bu kaydı sil</button>
+  </div>
+
+  <!-- Bilet Modalı -->
+  <div class="submodal-overlay" id="ticketModal" onclick="if(event.target === this) window.closeSubModal('ticketModal')">
+    <div class="boarding-pass">
+      <div class="ticket-header">
+        <div class="ticket-logo editable-field" id="ticketLogo" contenteditable="true">Aşk Havayolları ✈️</div>
+        <div class="ticket-type editable-field" id="ticketClass" contenteditable="true">FIRST CLASS</div>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-route">
+          <div class="route-station">
+            <div class="station-label">Kalkış Şehri</div>
+            <div class="station-city editable-field" id="ticketOrigin" contenteditable="true">Adana</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="#f43f5e" style="transform: rotate(90deg);">
+            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+          <div class="route-station" style="text-align:right;">
+            <div class="station-label">Varış Şehri</div>
+            <div class="station-city editable-field" id="ticketDest" contenteditable="true">Bodrum</div>
+          </div>
+        </div>
+        <div class="ticket-grid">
+          <div class="ticket-field">
+            <div class="tf-label">Yolcular</div>
+            <div class="tf-value editable-field" id="ticketPassengers" contenteditable="true">Ecoş & Ardoş ❤️</div>
+          </div>
+          <div class="ticket-field">
+            <div class="tf-label">Tarih</div>
+            <div class="tf-value editable-field" id="ticketDate" contenteditable="true"></div>
+          </div>
+          <div class="ticket-field">
+            <div class="tf-label">Koltuk</div>
+            <div class="tf-value editable-field" id="ticketSeat" contenteditable="true">Pencere Kenarı #01</div>
+          </div>
+          <div class="ticket-field">
+            <div class="tf-label">Uçuş Kodu</div>
+            <div class="tf-value editable-field" id="ticketFlight" contenteditable="true">EA-LOVE-2025</div>
+          </div>
+        </div>
+      </div>
+      <div class="ticket-stub">
+        <div>
+          <div class="barcode">||| | |||| | ||| |||| ||</div>
+          <div style="font-size:0.65rem; color:#64748b; margin-top:2px;">ÖMÜR BOYU GEÇERLİDİR</div>
+        </div>
+        <div class="stamp-circle"><span>ONAY</span><span>AŞKLA</span></div>
+      </div>
+      <div class="modal-bottom-bar">
+        <button type="button" class="save-sub-btn" onclick="window.saveTicketChanges()">✓ Bileti Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gazete Modalı -->
+  <div class="submodal-overlay" id="newsModal" onclick="if(event.target === this) window.closeSubModal('newsModal')">
+    <div class="retro-newspaper">
+      <div class="news-masthead">
+        <button type="button" class="news-dice-btn" onclick="window.randomizeNewspaper()">🎲 Yenile</button>
+        <h3 class="editable-field" id="newsMastheadTitle" contenteditable="true">AŞK POSTASI</h3>
+        <button type="button" class="news-dice-btn" onclick="window.closeSubModal('newsModal')">✕</button>
+      </div>
+      <div class="news-meta-strip">
+        <span class="editable-field" id="newsDate" contenteditable="true"></span>
+        <span class="editable-field" id="newsEdition" contenteditable="true">ÖZEL BASKI: ECOŞ & ARDOŞ</span>
+        <span class="editable-field" id="newsLocation" contenteditable="true">ŞEHİR</span>
+      </div>
+      <div class="news-weather-box">
+        <span style="font-size:1.4rem;">☀️</span>
+        <div style="flex:1;">
+          <strong style="display:block; font-size:0.8rem; color:#881337;">Aşk Hava Durumu:</strong>
+          <span class="editable-field" id="newsWeather" contenteditable="true">Yükleniyor...</span>
+        </div>
+      </div>
+      <div class="news-headline editable-field" id="newsHeadline" contenteditable="true">Başlık</div>
+      <div class="news-content editable-field" id="newsDesc" contenteditable="true">Not...</div>
+      <div class="news-footer editable-field" id="newsFooter" contenteditable="true">
+        "Dünyanın en güzel yeri, seninle olduğum yerdir." — Günün Manşeti
+      </div>
+      <div class="modal-bottom-bar" style="margin-top:10px;">
+        <button type="button" class="save-sub-btn" onclick="window.saveNewspaperChanges()">✓ Gazeteyi Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anı Ekleme Ekranı -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal-box">
+      <h2>Bu Noktayı Ölümsüzleştir</h2>
+      
+      <div class="type-selector">
+        <button type="button" class="type-pill active-memory" id="pillMemory" onclick="selectType('memory')">❤️ Normal Anı</button>
+        <button type="button" class="type-pill" id="pillTravel" onclick="selectType('travel')">✈️ Seyahat Anısı</button>
+        <button type="button" class="type-pill" id="pillDream" onclick="selectType('dream')">💛 Gelecek Hayali</button>
+      </div>
+
+      <div class="form-group" id="originWrap" style="display:none; background:#1e293b; padding:12px; border-radius:10px;">
+        <label style="color:#fca5a5; font-weight:700; margin-bottom:2px;">Nereden Uçtunuz / Yola Çıktınız? 🛫</label>
+        <span style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:6px;">Birden fazla kalkış noktası seçebilir veya dilediğiniz yeni şehri ekleyebilirsiniz:</span>
+        
+        <div class="origin-pill-group" id="originPillGroup">
+          <button type="button" class="origin-pill selected" data-city="Adana" onclick="window.toggleOriginPill(this)">Adana</button>
+          <button type="button" class="origin-pill" data-city="Antalya" onclick="window.toggleOriginPill(this)">Antalya</button>
+          <button type="button" class="origin-pill" data-city="İstanbul" onclick="window.toggleOriginPill(this)">İstanbul</button>
+          <button type="button" class="origin-pill" data-city="Ankara" onclick="window.toggleOriginPill(this)">Ankara</button>
+          <button type="button" class="origin-pill" data-city="İzmir" onclick="window.toggleOriginPill(this)">İzmir</button>
+          <button type="button" class="origin-pill" data-city="Bodrum" onclick="window.toggleOriginPill(this)">Bodrum</button>
+          <button type="button" class="origin-pill" data-city="Kapadokya" onclick="window.toggleOriginPill(this)">Kapadokya</button>
+          <button type="button" class="origin-pill" data-city="Trabzon" onclick="window.toggleOriginPill(this)">Trabzon</button>
+          <button type="button" class="origin-pill" data-city="Paris" onclick="window.toggleOriginPill(this)">Paris</button>
+          <button type="button" class="origin-pill" data-city="Roma" onclick="window.toggleOriginPill(this)">Roma</button>
+        </div>
+
+        <div class="origin-custom-row">
+          <input type="text" id="customOriginInput" class="origin-custom-input" placeholder="Farklı bir şehir yaz (Örn: Kaş, Amsterdam, Londra)..." onkeydown="if(event.key==='Enter'){event.preventDefault();window.addCustomOrigin();}">
+          <button type="button" class="origin-custom-btn" onclick="window.addCustomOrigin()">+ Şehir Ekle</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label id="labelTitle">Anının Başlığı</label>
+        <input type="text" id="m-title" placeholder="Örn: İlk Buluşma">
+      </div>
+      <div class="form-group">
+        <label>Varış Şehri / Konum</label>
+        <input type="text" id="m-city" placeholder="Örn: Bodrum, Muğla">
+      </div>
+      <div class="form-group">
+        <label id="labelDate">Tarih</label>
+        <input type="text" id="m-date" placeholder="Örn: 14 Ekim 2023 (İsteğe bağlı, boş bırakılabilir)">
+      </div>
+      <div class="form-group">
+        <label id="labelFile">Fotoğraflar Seç (Birden fazla seçebilirsin)</label>
+        <input type="file" id="m-file" accept="image/*" multiple onchange="window.updateFileLabel(this)">
+        <small id="fileCountHint" style="display:block; margin-top:4px; font-size:0.75rem; color:#fca5a5;"></small>
+      </div>
+      <div class="form-group">
+        <label id="labelDesc">O Güne Ait Notun</label>
+        <textarea id="m-desc" placeholder="Duygularını yaz..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">İptal</button>
+        <button class="btn" id="saveMemoryBtn" onclick="saveMemory()">Haritaya Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const KNOWN_ORIGINS = {
+      "Adana": [37.0000, 35.3213], "İstanbul": [41.0082, 28.9784], "Antalya": [36.8969, 30.7133],
+      "Ankara": [39.9334, 32.8597], "İzmir": [38.4237, 27.1428], "Bodrum": [37.0344, 27.4305],
+      "Kapadokya": [38.6431, 34.8289], "Trabzon": [41.0027, 39.7168], "Bursa": [40.1885, 29.0610],
+      "Eskişehir": [39.7767, 30.5206], "Muğla": [37.2153, 28.3636], "Fethiye": [36.6592, 29.1263],
+      "Marmaris": [36.8550, 28.2740], "Kaş": [36.2003, 29.6377], "Çanakkale": [40.1553, 26.4142],
+      "Gaziantep": [37.0662, 37.3833], "Mersin": [36.8121, 34.6415], "Hatay": [36.2023, 36.1606],
+      "Konya": [37.8746, 32.4932], "Kayseri": [38.7205, 35.4826], "Samsun": [41.2867, 36.3300],
+      "Rize": [41.0201, 40.5234], "Artvin": [41.1828, 41.8183], "Diyarbakır": [37.9144, 40.2306],
+      "Şanlıurfa": [37.1674, 38.7955], "Mardin": [37.3212, 40.7245], "Van": [38.5012, 43.3730],
+      "Denizli": [37.7765, 29.0864], "Aydın": [37.8444, 27.8458], "Kuşadası": [37.8579, 27.2610],
+      "Balıkesir": [39.6484, 27.8826], "Ayvalık": [39.3190, 26.6969], "Edirne": [41.6768, 26.5603],
+      "Paris": [48.8566, 2.3522], "Roma": [41.9028, 12.4964], "Londra": [51.5074, -0.1278],
+      "Amsterdam": [52.3676, 4.9041], "Barselona": [41.3879, 2.1699], "Madrid": [40.4168, -3.7038],
+      "Viyana": [48.2082, 16.3738], "Prag": [50.0755, 14.4378], "Berlin": [52.5200, 13.4050],
+      "Venedik": [45.4408, 12.3155], "Floransa": [43.7696, 11.2558], "Atina": [37.9838, 23.7275],
+      "Selanik": [40.6401, 22.9444], "Budapeşte": [47.4979, 19.0402], "Milano": [45.4642, 9.1900]
+    };
+
+    function getOriginCoordinates(cityName) {
+      if (!cityName) return null;
+      const targetCity = cityName.trim().toLocaleLowerCase('tr-TR');
+
+      if (Array.isArray(memories) && memories.length > 0) {
+        const matchedPin = memories.find(m => {
+          if (!m.city || m.lat == null || m.lng == null) return false;
+          const pinLoc = m.city.trim().toLocaleLowerCase('tr-TR');
+          return pinLoc === targetCity || pinLoc.includes(targetCity) || targetCity.includes(pinLoc);
+        });
+
+        if (matchedPin) {
+          return [Number(matchedPin.lat), Number(matchedPin.lng)];
+        }
+      }
+
+      for (const [key, coords] of Object.entries(KNOWN_ORIGINS)) {
+        if (key.toLocaleLowerCase('tr-TR') === targetCity) {
+          return coords;
+        }
+      }
+
+      return KNOWN_ORIGINS["Adana"];
+    }
+
+    const WEATHERS_POOL = [
+      "Gözlerinizde %100 aşk ışıltısı, tatlı bir tebessüm meltemi.",
+      "Aşk rüzgarları kalpten kalbe 40 km hızla esiyor.",
+      "Termometreler sonsuz sevgiyi gösteriyor, kalplerde sıcak hava dalgası hakim.",
+      "Tüm şehir bulutlu olsa bile sizin olduğunuz köşe günlük güneşlik.",
+      "Hava tam olarak 'seni izlerken zamanı unutma' kıvamında.",
+      "Hafif romantizm yağmuru ve iki kişilik tek şemsiye havası.",
+      "Pırıl pırıl bir gökyüzü ve ömür boyu sürecek kahkaha dalgası.",
+      "Yer yer sarılma sağanakları, zaman zaman el ele tutuşma serinliği bekleniyor.",
+      "Tatlı bir ilkbahar esintisi, fonda kahve ve aşk kokusu var.",
+      "Gökyüzünde sıfır bulut, ufukta ise birlikte yaşlanılacak günler görünüyor.",
+      "Kalpler arası ılık rüzgarlar; göz göze gelindiğinde hafif bir çarpıntı bekleniyor."
+    ];
+
+    const HEADLINES_POOL = [
+      "Dünyanın en güzel yeri, seninle olduğum yerdir.",
+      "Tüm haritalar bir gün senin kalbinde birleşmek için çizildi.",
+      "Zaman durdu; o an sadece iki kalp birlikte attı.",
+      "Birlikte atılan her adım, ömür boyu sürecek bir masala dönüştü.",
+      "Şehrin en kalabalık yerinde bile sadece ikimiz vardık.",
+      "Gözlerinin içine baktığımda tüm dünyayı unutuyorum.",
+      "Bu yolculuğun en güzel yanı, elini hiç bırakmamak.",
+      "Aşkımız tüm coğrafyaların ve sınırların ötesinde bir vatan kurdu.",
+      "Seninle geçen her saniye, ömrüme eklenen bir hediye."
+    ];
+
+    function getRandomHeadline() {
+      return HEADLINES_POOL[Math.floor(Math.random() * HEADLINES_POOL.length)];
+    }
+
+    const startDate = new Date("2025-01-10");
+    function updateCounter() {
+      const diffDays = Math.ceil(Math.abs(new Date() - startDate) / (1000 * 60 * 60 * 24));
+      const el = document.getElementById('relCounter');
+      if (el) el.innerText = `Birlikte ${diffDays} muhteşem gün!`;
+      const splashEl = document.getElementById('splashCounter');
+      if (splashEl) splashEl.innerText = `Birlikte ${diffDays} muhteşem gün!`;
+    }
+    updateCounter();
+
+    let pianoSynth = null, musicLoop = null, isMusicPlaying = false;
+    function setupAudioEngine() {
+      if (!pianoSynth && window.Tone) {
+        const reverb = new Tone.Reverb({ decay: 3.2, wet: 0.45 }).toDestination();
+        pianoSynth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "triangle8" },
+          envelope: { attack: 0.005, decay: 2.2, sustain: 0.1, release: 1.6 }
+        }).connect(reverb);
+        pianoSynth.volume.value = -6;
+      }
+    }
+
+    // Kıtır Balmumu Mühür Kırılma Sesi (Orijinal Ses Motoru)
+    function playWaxSnapSound() {
+      if (!window.Tone) return;
+      try {
+        const snap = new Tone.NoiseSynth({
+          noise: { type: "white" },
+          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.03 }
+        }).toDestination();
+        snap.volume.value = -2;
+        snap.triggerAttackRelease("16n");
+
+        const click = new Tone.MembraneSynth({
+          pitchDecay: 0.04, octaves: 3,
+          envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.04 }
+        }).toDestination();
+        click.volume.value = -4;
+        click.triggerAttackRelease("D2", "16n");
+      } catch(e) {}
+    }
+
+    window.toggleMusic = async function() {
+      if (!window.Tone) return;
+      try { await Tone.start(); if (Tone.context.state !== "running") await Tone.context.resume(); } catch(e){}
+      setupAudioEngine();
+      const btn = document.getElementById('musicBtn');
+      if (isMusicPlaying) {
+        Tone.Transport.stop();
+        if (musicLoop) musicLoop.stop();
+        if (btn) btn.classList.remove('playing');
+        isMusicPlaying = false;
+        return;
+      }
+      if (!musicLoop) {
+        const score = [
+          { notes: ["F3", "C4", "E4", "A4"], dur: "2n" }, { notes: ["C4"], dur: "4n" }, { notes: ["E4", "G4"], dur: "4n" },
+          { notes: ["G3", "D4", "F4", "B4"], dur: "2n" }, { notes: ["D4"], dur: "4n" }, { notes: ["F4", "A4"], dur: "4n" },
+          { notes: ["E3", "B3", "D4", "G4"], dur: "2n" }, { notes: ["B3"], dur: "4n" }, { notes: ["D4", "F#4"], dur: "4n" },
+          { notes: ["A3", "E4", "G4", "C5"], dur: "2n" }, { notes: ["E4"], dur: "4n" }, { notes: ["G4", "B4"], dur: "4n" }
+        ];
+        let step = 0;
+        musicLoop = new Tone.Loop(time => {
+          const item = score[step];
+          if (pianoSynth) pianoSynth.triggerAttackRelease(item.notes, item.dur, time, 0.6);
+          step = (step + 1) % score.length;
+        }, "4n");
+      }
+      Tone.Transport.bpm.value = 68;
+      musicLoop.start(0);
+      Tone.Transport.start();
+      if (btn) btn.classList.add('playing');
+      isMusicPlaying = true;
+    };
+
+    // 1. ADIM: MÜHRE TIKLANDIĞINDA İKİ PARÇA AYRILIR VE SAVRULUR
+    window.breakOuterSeal = async function() {
+      const sealAnchor = document.getElementById('outerSealAnchor');
+      const outerOverlay = document.getElementById('outerEnvelopeOverlay');
+
+      try { await Tone.start(); if (Tone.context.state !== "running") await Tone.context.resume(); } catch(e){}
+
+      // Çatlama sesini çal
+      playWaxSnapSound();
+
+      // Mührü ikiye ayır
+      sealAnchor.classList.add('broken');
+      outerOverlay.classList.add('opened');
+
+      // Tıklamayı kapat
+      sealAnchor.style.pointerEvents = 'none';
+
+      // Parçaların savrulması izlendikten sonra mektup kartına geç
+      setTimeout(() => {
+        outerOverlay.classList.add('hidden');
+      }, 950);
+    };
+
+    // 2. ADIM: YALNIZCA "HARİTAYI AÇ" BUTONUNA BASILINCA HARİTAYA GEÇİŞ YAPILIR
+    window.enterMap = async function(withMusic = true) {
+      document.getElementById('splashOverlay').classList.add('hidden');
+      document.getElementById('topBarTitle').innerText = "Aşk Haritamız";
+      
+      // Harita açılınca üst menüyü görünür yap
+      const topBar = document.getElementById('mainTopBar');
+      if (topBar) topBar.classList.add('active-bar');
+
+      // Harita boyutlarını tam ekran pencereye göre anında yeniden hesapla (Boşluk kalmasını önler)
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 100);
+
+      if (withMusic && !isMusicPlaying) await window.toggleMusic();
+      triggerConfetti();
+    };
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCLXNn1WoiDAS4sxHuzPSVPf7Ve2BuiLWg",
+      authDomain: "ask-haritasi.firebaseapp.com",
+      projectId: "ask-haritasi",
+      storageBucket: "ask-haritasi.firebasestorage.app",
+      messagingSenderId: "389968127664",
+      appId: "1:389968127664:web:cb7865d77aac22bafdfd75"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    signInAnonymously(auth).catch(err => console.log(err));
+
+    const map = L.map('map', { zoomControl: false }).setView([38.5, 32.5], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3sri_1_b16158d7b17e41a5cbdc5299', {
+      maxZoom: 20, attribution: '© CARTO'
+    }).addTo(map);
+
+    let memories = [];
+    let markers = [];
+    let arcLayers = [];
+    let addMode = false, tempCoords = null, currentMemoryId = null, selectedType = "memory";
+    let currentDeckImages = [], currentDeckIndex = 0, activeMemoryObj = null;
+
+    window.toggleOriginPill = function(btn) {
+      btn.classList.toggle('selected');
+    };
+
+    window.addCustomOrigin = async function() {
+      const input = document.getElementById('customOriginInput');
+      const cityName = input.value.trim();
+      if (!cityName) return;
+
+      const formattedName = cityName.charAt(0).toLocaleUpperCase('tr-TR') + cityName.slice(1);
+      const container = document.getElementById('originPillGroup');
+
+      let existingBtn = Array.from(container.querySelectorAll('.origin-pill')).find(
+        b => b.getAttribute('data-city').toLowerCase() === formattedName.toLowerCase()
+      );
+
+      if (existingBtn) {
+        existingBtn.classList.add('selected');
+        input.value = '';
+        return;
+      }
+
+      const newBtn = document.createElement('button');
+      newBtn.type = 'button';
+      newBtn.className = 'origin-pill selected';
+      newBtn.setAttribute('data-city', formattedName);
+      newBtn.onclick = function() { window.toggleOriginPill(this); };
+      newBtn.innerText = formattedName;
+      container.appendChild(newBtn);
+      input.value = '';
+
+      if (!KNOWN_ORIGINS[formattedName]) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formattedName)}`);
+          const data = await res.json();
+          if (data && data.length > 0) {
+            KNOWN_ORIGINS[formattedName] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+          } else {
+            KNOWN_ORIGINS[formattedName] = KNOWN_ORIGINS["Adana"];
+          }
+        } catch(e) {
+          KNOWN_ORIGINS[formattedName] = KNOWN_ORIGINS["Adana"];
+        }
+      }
+    };
+
+    function getSelectedOrigins() {
+      const selectedBtns = document.querySelectorAll('#originPillGroup .origin-pill.selected');
+      const cities = Array.from(selectedBtns).map(b => b.getAttribute('data-city'));
+      return cities.length > 0 ? cities : ["Adana"];
+    }
+
+    function setSelectedOrigins(origins) {
+      const list = Array.isArray(origins) ? origins : (origins ? [origins] : ["Adana"]);
+      const container = document.getElementById('originPillGroup');
+      
+      list.forEach(city => {
+        let btn = Array.from(container.querySelectorAll('.origin-pill')).find(
+          b => b.getAttribute('data-city').toLowerCase() === city.toLowerCase()
+        );
+        if (!btn) {
+          btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'origin-pill selected';
+          btn.setAttribute('data-city', city);
+          btn.onclick = function() { window.toggleOriginPill(this); };
+          btn.innerText = city;
+          container.appendChild(btn);
+        }
+      });
+
+      document.querySelectorAll('#originPillGroup .origin-pill').forEach(b => {
+        const city = b.getAttribute('data-city');
+        if (list.some(c => c.toLowerCase() === city.toLowerCase())) b.classList.add('selected');
+        else b.classList.remove('selected');
+      });
+    }
+
+    function escapeHtml(str) { return String(str).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+    function calculateBezierArc(start, end, numPoints = 36) {
+      const lat1 = start[0], lng1 = start[1];
+      const lat2 = end[0], lng2 = end[1];
+
+      const dLat = lat2 - lat1;
+      const dLng = lng2 - lng1;
+      const dist = Math.hypot(dLat, dLng);
+      if (dist < 0.01) return [[lat1, lng1], [lat2, lng2]];
+
+      const midLat = (lat1 + lat2) / 2;
+      const midLng = (lng1 + lng2) / 2;
+
+      let perpLat = -dLng / dist;
+      let perpLng = dLat / dist;
+
+      if (perpLat < 0) {
+        perpLat = -perpLat;
+        perpLng = -perpLng;
+      }
+
+      if (perpLat < 0.2) {
+        perpLat = 0.35;
+        perpLng = (perpLng >= 0 ? 0.35 : -0.35);
+      }
+
+      const arcHeight = Math.min(Math.max(dist * 0.22, 0.35), 4.5);
+      const ctrlLat = midLat + perpLat * arcHeight;
+      const ctrlLng = midLng + perpLng * arcHeight;
+
+      const points = [];
+      for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        const oneMinusT = 1 - t;
+        const lat = oneMinusT * oneMinusT * lat1 + 2 * oneMinusT * t * ctrlLat + t * t * lat2;
+        const lng = oneMinusT * oneMinusT * lng1 + 2 * oneMinusT * t * ctrlLng + t * t * lng2;
+        points.push([lat, lng]);
+      }
+      return points;
+    }
+
+    function loadMemories() {
+      onSnapshot(query(collection(db, "memories")), snapshot => {
+        memories = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.originCoords && typeof data.originCoords === 'object') {
+            Object.assign(KNOWN_ORIGINS, data.originCoords);
+          }
+          memories.push({ id: doc.id, ...data });
+        });
+        memories.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        drawMap();
+      });
+    }
+    loadMemories();
+
+    function drawMap() {
+      markers.forEach(m => map.removeLayer(m));
+      arcLayers.forEach(l => map.removeLayer(l));
+      markers = [];
+      arcLayers = [];
+
+      memories.forEach(mem => {
+        const isDream = mem.type === "dream";
+        const isTravel = mem.type === "travel";
+
+        if (isTravel) {
+          const originList = Array.isArray(mem.flightOrigins) && mem.flightOrigins.length > 0 
+            ? mem.flightOrigins 
+            : (mem.flightOrigin ? [mem.flightOrigin] : ["Adana"]);
+
+          const destCoord = [mem.lat, mem.lng];
+
+          originList.forEach(originName => {
+            const originCoord = getOriginCoordinates(originName);
+            if (!originCoord) return;
+
+            const [lat1, lng1] = originCoord;
+            const [lat2, lng2] = [destCoord[0], destCoord[1]];
+
+            const distance = Math.hypot(lat2 - lat1, lng2 - lng1);
+            if (distance > 0.05) {
+              const arcPoints = calculateBezierArc([lat1, lng1], [lat2, lng2]);
+              const arc = L.polyline(arcPoints, {
+                color: '#f43f5e', weight: 3, className: 'flight-arc', opacity: 0.95
+              }).addTo(map);
+              arc.bindTooltip(`✈️ ${originName} ➔ ${mem.city || mem.title}`, { sticky: true });
+              arcLayers.push(arc);
+            }
+          });
+        }
+
+        const cityLabel = mem.city ? `<div class="city-label">${escapeHtml(mem.city)}</div>` : '';
+        let pinClass = 'custom-heart-pin';
+        if (isDream) pinClass = 'custom-gold-pin';
+        else if (isTravel) pinClass = 'custom-travel-pin';
+
+        const icon = L.divIcon({
+          className: 'custom-pin-container',
+          html: `${cityLabel}<div class="pin-wrap"><div class="${pinClass}"></div></div>`,
+          iconSize: [180, 70], iconAnchor: [90, 70]
+        });
+
+        const m = L.marker([mem.lat, mem.lng], { icon }).addTo(map);
+        m.on('click', () => window.showCard(mem));
+        markers.push(m);
+      });
+    }
+
+    window.selectType = function(type) {
+      selectedType = type;
+      const originWrap = document.getElementById('originWrap');
+      document.getElementById('pillMemory').className = "type-pill" + (type === 'memory' ? " active-memory" : "");
+      document.getElementById('pillTravel').className = "type-pill" + (type === 'travel' ? " active-travel" : "");
+      document.getElementById('pillDream').className = "type-pill" + (type === 'dream' ? " active-dream" : "");
+
+      originWrap.style.display = (type === 'travel') ? 'block' : 'none';
+
+      if (type === 'dream') {
+        document.getElementById('labelTitle').innerText = "Gelecek Hayalimiz";
+        document.getElementById('labelDate').innerText = "Hedeflenen Zaman";
+      } else if (type === 'travel') {
+        document.getElementById('labelTitle').innerText = "Seyahat Durağı / Anısı";
+        document.getElementById('labelDate').innerText = "Seyahat Tarihi";
+      } else {
+        document.getElementById('labelTitle').innerText = "Anının Başlığı";
+        document.getElementById('labelDate').innerText = "Tarih";
+      }
+    };
+
+    window.showCard = function(mem) {
+      currentMemoryId = mem.id;
+      activeMemoryObj = mem;
+      const isDream = mem.type === "dream";
+      const isTravel = mem.type === "travel";
+
+      document.getElementById('c-title').innerText = mem.title;
+      document.getElementById('c-city').innerText = mem.city || '';
+      document.getElementById('c-date').innerText = (mem.date && mem.date !== "Belirsiz") ? mem.date : "";
+      document.getElementById('c-desc').innerText = `"${mem.desc}"`;
+
+      const routeEl = document.getElementById('c-flight-route');
+      if (isTravel) {
+        const originList = Array.isArray(mem.flightOrigins) && mem.flightOrigins.length > 0 
+          ? mem.flightOrigins 
+          : (mem.flightOrigin ? [mem.flightOrigin] : ["Adana"]);
+        routeEl.innerText = `✈️ ${originList.join(', ')} ➔ ${mem.city || "Varış Noktası"}`;
+        routeEl.style.display = 'inline-flex';
+      } else {
+        routeEl.style.display = 'none';
+      }
+
+      currentDeckImages = (Array.isArray(mem.imgs) && mem.imgs.length > 0) ? mem.imgs : (mem.img ? [mem.img] : []);
+      currentDeckIndex = 0;
+      updateDeckDisplay();
+
+      const badge = document.getElementById('c-badge');
+      const fulfillBtn = document.getElementById('fulfillBtn');
+      const ticketBtn = document.getElementById('ticketActionBtn');
+
+      ticketBtn.style.display = isTravel ? "flex" : "none";
+      if (isDream) {
+        badge.innerText = "✨ Gelecek Hayali"; badge.className = "panel-badge badge-dream"; fulfillBtn.style.display = "block";
+      } else if (isTravel) {
+        badge.innerText = "✈️ Uçuş / Seyahat"; badge.className = "panel-badge badge-travel"; fulfillBtn.style.display = "none";
+      } else {
+        badge.innerText = "❤️ Yaşanmış Anı"; badge.className = "panel-badge badge-memory"; fulfillBtn.style.display = "none";
+      }
+
+      map.flyTo([mem.lat, mem.lng], 13, { duration: 1.2 });
+      document.getElementById('cinematicOverlay').classList.add('active');
+      const card = document.getElementById('memoryCard');
+      card.style.display = 'block';
+      setTimeout(() => card.classList.add('show'), 10);
+    };
+
+    window.closeCard = function() {
+      const card = document.getElementById('memoryCard');
+      card.classList.remove('show');
+      document.getElementById('cinematicOverlay').classList.remove('active');
+      setTimeout(() => card.style.display = 'none', 400);
+      currentMemoryId = null;
+    };
+
+    window.saveMemory = async function() {
+      if (!tempCoords) return alert("Lütfen haritada bir noktaya dokunun.");
+      const title = document.getElementById('m-title').value || "Güzel Bir Anı";
+      const city = document.getElementById('m-city').value || "";
+      const rawDate = document.getElementById('m-date').value.trim();
+      const date = rawDate ? rawDate : "";
+      const desc = document.getElementById('m-desc').value || "...";
+      const flightOrigins = getSelectedOrigins();
+      const fileInput = document.getElementById('m-file');
+
+      const originCoordsToSave = {};
+      flightOrigins.forEach(c => {
+        const coord = getOriginCoordinates(c);
+        if (coord) originCoordsToSave[c] = coord;
+      });
+
+      const finalizeSave = async (imagesArray) => {
+        try {
+          await addDoc(collection(db, "memories"), {
+            lat: tempCoords.lat, lng: tempCoords.lng, title, city, date, desc,
+            flightOrigins: selectedType === 'travel' ? flightOrigins : [],
+            flightOrigin: selectedType === 'travel' ? flightOrigins[0] : "",
+            originCoords: selectedType === 'travel' ? originCoordsToSave : {},
+            img: imagesArray[0] || "", imgs: imagesArray, type: selectedType, timestamp: Date.now()
+          });
+          window.closeModal();
+          triggerConfetti();
+        } catch(e) { alert("Kayıt hatası: " + e.message); }
+      };
+
+      if (fileInput.files && fileInput.files[0]) {
+        processMultipleImages(fileInput.files, finalizeSave);
+      } else {
+        finalizeSave(["data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='400' height='200' fill='%231e293b'/%3E%3Cpath d='M200 70 C 200 70, 160 30, 120 70 C 80 110, 200 180, 200 180 C 200 180, 320 110, 280 70 C 240 30, 200 70, 200 70 Z' fill='%23e11d48' opacity='0.7'/%3E%3C/svg%3E"]);
+      }
+    };
+
+    // Bilet İşlemleri
+    window.openBoardingPass = function() {
+      if (!activeMemoryObj) return;
+      const mem = activeMemoryObj;
+      const t = mem.ticketData || {};
+      const originList = Array.isArray(mem.flightOrigins) && mem.flightOrigins.length > 0 
+        ? mem.flightOrigins.join(' / ') 
+        : (mem.flightOrigin || "Adana");
+
+      const cleanDate = (mem.date && mem.date !== "Belirsiz") ? mem.date : "";
+
+      document.getElementById('ticketOrigin').innerText = t.origin || originList;
+      document.getElementById('ticketDest').innerText = t.dest || (mem.city || mem.title);
+      document.getElementById('ticketFlight').innerText = t.flight || "EA-LOVE-2025";
+      document.getElementById('ticketDate').innerText = t.date !== undefined ? t.date : cleanDate;
+      document.getElementById('ticketModal').style.display = 'flex';
+    };
+
+    window.saveTicketChanges = async function() {
+      if (!currentMemoryId) return;
+      const originStr = document.getElementById('ticketOrigin').innerText.trim();
+      const destStr = document.getElementById('ticketDest').innerText.trim();
+      const updatedTicket = {
+        origin: originStr,
+        dest: destStr,
+        passengers: document.getElementById('ticketPassengers').innerText.trim(),
+        date: document.getElementById('ticketDate').innerText.trim(),
+        seat: document.getElementById('ticketSeat').innerText.trim(),
+        flight: document.getElementById('ticketFlight').innerText.trim()
+      };
+
+      const parsedOrigins = originStr.split(/[\/,+&]/).map(s => s.trim()).filter(Boolean);
+      const updatePayload = { ticketData: updatedTicket };
+      if (parsedOrigins.length > 0) {
+        updatePayload.flightOrigins = parsedOrigins;
+        updatePayload.flightOrigin = parsedOrigins[0];
+      }
+
+      await updateDoc(doc(db, "memories", currentMemoryId), updatePayload);
+      if (activeMemoryObj) {
+        activeMemoryObj.ticketData = updatedTicket;
+        if (parsedOrigins.length > 0) {
+          activeMemoryObj.flightOrigins = parsedOrigins;
+          activeMemoryObj.flightOrigin = parsedOrigins[0];
+        }
+      }
+      drawMap();
+      showToastNotice("Bilet kaydedildi! ✨");
+    };
+
+    // Gazete İşlemleri
+    window.openNewspaper = function() {
+      if (!activeMemoryObj) return;
+      const mem = activeMemoryObj;
+      const n = mem.newsData || {};
+      
+      const cleanDate = (mem.date && mem.date !== "Belirsiz") ? mem.date : "";
+
+      document.getElementById('newsHeadline').innerText = n.headline || `"${mem.title}"`;
+      document.getElementById('newsDesc').innerText = n.desc || mem.desc;
+      document.getElementById('newsDate').innerText = n.date !== undefined ? n.date : cleanDate;
+      document.getElementById('newsLocation').innerText = (mem.city || "DÜNYA").toUpperCase();
+      document.getElementById('newsWeather').innerText = n.weather || WEATHERS_POOL[0];
+      document.getElementById('newsFooter').innerText = n.footer || `"${getRandomHeadline()}" — Günün Manşeti`;
+      document.getElementById('newsModal').style.display = 'flex';
+    };
+
+    window.randomizeNewspaper = function() {
+      document.getElementById('newsWeather').innerText = WEATHERS_POOL[Math.floor(Math.random() * WEATHERS_POOL.length)];
+      document.getElementById('newsFooter').innerText = `"${getRandomHeadline()}" — Günün Manşeti`;
+    };
+
+    window.saveNewspaperChanges = async function() {
+      if (!currentMemoryId) return;
+      const updatedNews = {
+        headline: document.getElementById('newsHeadline').innerText.trim(),
+        desc: document.getElementById('newsDesc').innerText.trim(),
+        date: document.getElementById('newsDate').innerText.trim(),
+        weather: document.getElementById('newsWeather').innerText.trim(),
+        footer: document.getElementById('newsFooter').innerText.trim()
+      };
+      await updateDoc(doc(db, "memories", currentMemoryId), { newsData: updatedNews });
+      if (activeMemoryObj) {
+        activeMemoryObj.newsData = updatedNews;
+        activeMemoryObj.date = updatedNews.date;
+      }
+      showToastNotice("Gazete kaydedildi! 📰");
+    };
+
+    function showToastNotice(msg) {
+      const toast = document.getElementById('toastMsg');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2200);
+    }
+
+    window.closeSubModal = id => document.getElementById(id).style.display = 'none';
+
+    function updateDeckDisplay() {
+      const img = document.getElementById('c-img');
+      img.src = currentDeckImages[currentDeckIndex] || '';
+      document.getElementById('deckCounter').innerText = `${currentDeckIndex + 1} / ${currentDeckImages.length || 1}`;
+      document.getElementById('deckCounter').style.display = currentDeckImages.length > 1 ? 'block' : 'none';
+      document.getElementById('deckPrev').style.display = currentDeckImages.length > 1 ? 'flex' : 'none';
+      document.getElementById('deckNext').style.display = currentDeckImages.length > 1 ? 'flex' : 'none';
+    }
+    window.navDeck = dir => {
+      if (!currentDeckImages.length) return;
+      currentDeckIndex = (currentDeckIndex + dir + currentDeckImages.length) % currentDeckImages.length;
+      updateDeckDisplay();
+    };
+
+    window.fulfillCurrentDream = async function() {
+      if (!currentMemoryId) return;
+      await updateDoc(doc(db, "memories", currentMemoryId), { type: "memory" });
+      triggerConfetti();
+      window.closeCard();
+    };
+
+    window.deleteCurrentMemory = async function() {
+      if (!confirm("Bu kaydı silmek istediğine emin misin?")) return;
+      await deleteDoc(doc(db, "memories", currentMemoryId));
+      window.closeCard();
+    };
+
+    window.toggleAddMode = function() {
+      addMode = !addMode;
+      document.getElementById('toastMsg').style.display = addMode ? 'block' : 'none';
+      document.getElementById('addBtn').style.background = addMode ? '#e11d48' : 'transparent';
+      document.getElementById('addBtn').style.color = addMode ? '#fff' : '#fca5a5';
+      document.getElementById('map').style.cursor = addMode ? 'crosshair' : 'grab';
+    };
+
+    map.on('click', e => {
+      if (!addMode) return;
+      tempCoords = e.latlng;
+      document.getElementById('addModal').style.display = 'flex';
+      window.toggleAddMode();
+    });
+
+    window.closeModal = function() {
+      document.getElementById('addModal').style.display = 'none';
+      document.getElementById('m-title').value = '';
+      document.getElementById('m-city').value = '';
+      document.getElementById('m-date').value = '';
+      document.getElementById('m-desc').value = '';
+      document.getElementById('m-file').value = '';
+      setSelectedOrigins(["Adana"]);
+    };
+
+    window.updateFileLabel = function(input) {
+      const hint = document.getElementById('fileCountHint');
+      hint.innerText = (input.files && input.files.length > 1) ? `✨ ${input.files.length} fotoğraf seçildi` : '';
+    };
+
+    function triggerConfetti() {
+      if (typeof confetti !== 'function') return;
+      confetti({ particleCount: 35, spread: 60, origin: { y: 0.7 }, colors: ['#f43f5e', '#ea580c', '#fb7185'] });
+    }
+
+    function processMultipleImages(files, cb) {
+      const results = []; let count = 0;
+      Array.from(files).forEach((f, i) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let w = img.width, h = img.height;
+            if (w > 800) { h = Math.round((h * 800) / w); w = 800; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            results[i] = canvas.toDataURL('image/jpeg', 0.72);
+            if (++count === files.length) cb(results);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+
+    let storyIdx = 0;
+    window.playStory = function() {
+      if (!memories.length) return;
+      if (storyIdx >= memories.length) storyIdx = 0;
+      window.showCard(memories[storyIdx++]);
+    };
+  </script>
+</body>
+</html>
