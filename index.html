@@ -490,6 +490,10 @@
     }
     .fulfill-btn { width: 100%; margin-top: 10px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 9px; border-radius: 10px; font-weight: 600; font-size: 0.85rem; cursor: pointer; display: none; }
     .close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; }
+    .memory-record-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .memory-record-actions .delete-link { margin-top: 0; padding: 6px 0; }
+    .memory-record-actions .delete-link:hover,
+    .memory-record-actions .delete-link:focus-visible { opacity: 1; }
     .delete-link { display: block; text-align: right; margin-top: 8px; background: none; border: none; font-size: 0.75rem; color: #cbd5e1; opacity: 0.6; cursor: pointer; }
 
     /* Modallar (Bilet & Gazete) */
@@ -548,7 +552,7 @@
 
     /* Modal Form */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 15px; }
-    .modal-box { background: #0f172a; padding: 20px; border-radius: 15px; width: 100%; max-width: 430px; border: 1px solid #e11d48; color: #fff; }
+    .modal-box { max-height: calc(100dvh - 30px); overflow-y: auto; background: #0f172a; padding: 20px; border-radius: 15px; width: 100%; max-width: 430px; border: 1px solid #e11d48; color: #fff; }
     .modal-box h2 { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; margin-bottom: 12px; color: #fca5a5; }
     .type-selector { display: flex; gap: 6px; margin-bottom: 14px; background: #1e293b; padding: 4px; border-radius: 12px; }
     .type-pill { flex: 1; background: transparent; border: none; color: #94a3b8; padding: 7px 4px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: center; }
@@ -680,6 +684,10 @@
   <div class="toast" id="toastMsg">Haritada noktanın geçtiği yere tıklayın.</div>
 
   <!-- Polaroid Kart -->
+  <div id="memoryLoadStatus" role="status" style="display:none;position:fixed;bottom:84px;left:50%;transform:translateX(-50%);z-index:1900;width:calc(100% - 32px);max-width:420px;background:#0f172a;color:#f8fafc;padding:12px 16px;border-radius:12px;font-size:13px;text-align:center;box-shadow:0 4px 20px #0004;">
+    <span id="memoryLoadMessage"></span>
+    <button id="retryMemoryLoad" type="button" onclick="window.retryMemoryLoad()" style="display:none;background:none;border:0;color:#fda4af;cursor:pointer;padding:8px;">Tekrar dene</button>
+  </div>
   <div id="memoryCard" class="memory-panel">
     <button class="close-btn" onclick="closeCard()">×</button>
     <div class="polaroid-deck-wrap" id="deckWrap">
@@ -702,7 +710,10 @@
       <button type="button" class="souvenir-btn" onclick="window.openNewspaper()">📰 O Gün Ne Oldu?</button>
     </div>
     <button id="fulfillBtn" class="fulfill-btn" onclick="fulfillCurrentDream()">✨ Bu Hayali Gerçekleştirdik!</button>
-    <button class="delete-link" onclick="deleteCurrentMemory()">Bu kaydı sil</button>
+    <div class="memory-record-actions">
+      <button type="button" class="delete-link" onclick="editCurrentMemory()">Düzenle</button>
+      <button type="button" class="delete-link" onclick="deleteCurrentMemory()">Sil</button>
+    </div>
   </div>
 
   <!-- Bilet Modalı -->
@@ -792,7 +803,7 @@
   <!-- Anı Ekleme Ekranı -->
   <div class="modal-overlay" id="addModal">
     <div class="modal-box">
-      <h2>Bu Noktayı Ölümsüzleştir</h2>
+      <h2 id="memoryFormTitle">Bu Noktayı Ölümsüzleştir</h2>
       
       <div class="type-selector">
         <button type="button" class="type-pill active-memory" id="pillMemory" onclick="selectType('memory')">❤️ Normal Anı</button>
@@ -837,6 +848,7 @@
       </div>
       <div class="form-group">
         <label id="labelFile">Fotoğraflar Seç (Birden fazla seçebilirsin)</label>
+        <div id="existingPhotos" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
         <input type="file" id="m-file" accept="image/*" multiple onchange="window.updateFileLabel(this)">
         <small id="fileCountHint" style="display:block; margin-top:4px; font-size:0.75rem; color:#fca5a5;"></small>
       </div>
@@ -1057,7 +1069,7 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    signInAnonymously(auth).catch(err => console.log(err));
+
 
     const map = L.map('map', { zoomControl: false }).setView([38.5, 32.5], 6);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_3sri_1_b16158d7b17e41a5cbdc5299', {
@@ -1068,6 +1080,7 @@
     let markers = [];
     let arcLayers = [];
     let addMode = false, tempCoords = null, currentMemoryId = null, selectedType = "memory";
+    let editingMemoryId = null, retainedImages = [], savingMemory = false;
     let currentDeckImages = [], currentDeckIndex = 0, activeMemoryObj = null;
 
     window.toggleOriginPill = function(btn) {
@@ -1190,21 +1203,49 @@
       return points;
     }
 
-    function loadMemories() {
-      onSnapshot(query(collection(db, "memories")), snapshot => {
-        memories = [];
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.originCoords && typeof data.originCoords === 'object') {
-            Object.assign(KNOWN_ORIGINS, data.originCoords);
-          }
-          memories.push({ id: doc.id, ...data });
-        });
-        memories.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        drawMap();
-      });
+    let stopMemoryListener = null, loadingMemories = false;
+
+    function setMemoryLoadStatus(message, failed = false) {
+      document.getElementById('memoryLoadStatus').style.display = message ? 'block' : 'none';
+      document.getElementById('memoryLoadMessage').textContent = message;
+      document.getElementById('retryMemoryLoad').style.display = failed ? 'inline-block' : 'none';
     }
-    loadMemories();
+
+    function showMemoryLoadError(error) {
+      loadingMemories = false;
+      const code = error.code || 'bilinmeyen-hata';
+      console.error('Anılar yüklenemedi:', error);
+      const explanation = code.includes('permission-denied')
+        ? 'Anıları okuma izni alınamadı.'
+        : 'Anılara bağlanılamadı. İnternet bağlantını kontrol edip tekrar dene.';
+      setMemoryLoadStatus(`${explanation} (${code})`, true);
+    }
+
+    window.retryMemoryLoad = async function() {
+      if (loadingMemories) return;
+      loadingMemories = true;
+      if (stopMemoryListener) { stopMemoryListener(); stopMemoryListener = null; }
+      setMemoryLoadStatus('Anılar yükleniyor…');
+      try {
+        // Firestore kuralları oturum gerektirebilir; önce kimlik doğrulamayı tamamla.
+        await auth.authStateReady();
+        if (!auth.currentUser) await signInAnonymously(auth);
+        stopMemoryListener = onSnapshot(query(collection(db, 'memories')), snapshot => {
+          const loaded = [];
+          snapshot.forEach(record => {
+            const data = record.data();
+            if (data.originCoords && typeof data.originCoords === 'object') {
+              Object.assign(KNOWN_ORIGINS, data.originCoords);
+            }
+            loaded.push({ ...data, id: record.id });
+          });
+          memories = loaded.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          drawMap();
+          loadingMemories = false;
+          setMemoryLoadStatus('');
+        }, showMemoryLoadError);
+      } catch (error) { showMemoryLoadError(error); }
+    };
 
     function drawMap() {
       markers.forEach(m => map.removeLayer(m));
@@ -1330,44 +1371,111 @@
       const card = document.getElementById('memoryCard');
       card.classList.remove('show');
       document.getElementById('cinematicOverlay').classList.remove('active');
-      setTimeout(() => card.style.display = 'none', 400);
+      setTimeout(() => { if (!card.classList.contains('show')) card.style.display = 'none'; }, 400);
       currentMemoryId = null;
     };
 
-    window.saveMemory = async function() {
-      if (!tempCoords) return alert("Lütfen haritada bir noktaya dokunun.");
-      const title = document.getElementById('m-title').value || "Güzel Bir Anı";
-      const city = document.getElementById('m-city').value || "";
-      const rawDate = document.getElementById('m-date').value.trim();
-      const date = rawDate ? rawDate : "";
-      const desc = document.getElementById('m-desc').value || "...";
-      const flightOrigins = getSelectedOrigins();
-      const fileInput = document.getElementById('m-file');
+    window.renderExistingPhotos = function() {
+      const container = document.getElementById('existingPhotos');
+      container.replaceChildren();
+      retainedImages.forEach((src, index) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex;flex-direction:column;gap:4px;width:76px;';
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = `Mevcut fotoğraf ${index + 1}`;
+        img.style.cssText = 'width:76px;height:70px;object-fit:cover;border-radius:8px;';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = 'Kaldır';
+        remove.className = 'btn btn-outline';
+        remove.style.padding = '4px';
+        remove.onclick = () => {
+          if (savingMemory) return;
+          retainedImages.splice(index, 1);
+          window.renderExistingPhotos();
+        };
+        item.append(img, remove);
+        container.appendChild(item);
+      });
+    };
 
+    window.editCurrentMemory = function() {
+      if (savingMemory || !currentMemoryId) return;
+      const mem = memories.find(m => m.id === currentMemoryId) || activeMemoryObj;
+      if (!mem) return;
+      window.closeModal();
+      editingMemoryId = mem.id;
+      tempCoords = { lat: mem.lat, lng: mem.lng };
+      retainedImages = Array.isArray(mem.imgs) && mem.imgs.length ? [...mem.imgs] : (mem.img ? [mem.img] : []);
+      document.getElementById('m-title').value = mem.title || '';
+      document.getElementById('m-city').value = mem.city || '';
+      document.getElementById('m-date').value = mem.date === 'Belirsiz' ? '' : (mem.date || '');
+      document.getElementById('m-desc').value = mem.desc || '';
+      window.selectType(mem.type || 'memory');
+      setSelectedOrigins(mem.flightOrigins?.length ? mem.flightOrigins : (mem.flightOrigin ? [mem.flightOrigin] : ['Adana']));
+      document.getElementById('memoryFormTitle').textContent = 'Anıyı Düzenle';
+      document.getElementById('saveMemoryBtn').textContent = 'Değişiklikleri Kaydet';
+      document.getElementById('fileCountHint').textContent = 'Yeni seçtiğin fotoğraflar mevcut fotoğraflara eklenir.';
+      window.renderExistingPhotos();
+      if (addMode) window.toggleAddMode();
+      window.closeCard();
+      document.getElementById('addModal').style.display = 'flex';
+      document.getElementById('m-title').focus();
+    };
+
+    window.saveMemory = async function() {
+      if (savingMemory) return;
+      if (!tempCoords) return alert('Lütfen haritada bir noktaya dokunun.');
+      const editId = editingMemoryId;
+      const flightOrigins = getSelectedOrigins();
       const originCoordsToSave = {};
       flightOrigins.forEach(c => {
         const coord = getOriginCoordinates(c);
         if (coord) originCoordsToSave[c] = coord;
       });
-
-      const finalizeSave = async (imagesArray) => {
-        try {
-          await addDoc(collection(db, "memories"), {
-            lat: tempCoords.lat, lng: tempCoords.lng, title, city, date, desc,
-            flightOrigins: selectedType === 'travel' ? flightOrigins : [],
-            flightOrigin: selectedType === 'travel' ? flightOrigins[0] : "",
-            originCoords: selectedType === 'travel' ? originCoordsToSave : {},
-            img: imagesArray[0] || "", imgs: imagesArray, type: selectedType, timestamp: Date.now()
-          });
+      const payload = {
+        lat: tempCoords.lat, lng: tempCoords.lng,
+        title: document.getElementById('m-title').value.trim() || 'Güzel Bir Anı',
+        city: document.getElementById('m-city').value.trim(),
+        date: document.getElementById('m-date').value.trim(),
+        desc: document.getElementById('m-desc').value || '...',
+        type: selectedType,
+        flightOrigins: selectedType === 'travel' ? flightOrigins : [],
+        flightOrigin: selectedType === 'travel' ? flightOrigins[0] : '',
+        originCoords: selectedType === 'travel' ? originCoordsToSave : {}
+      };
+      const files = Array.from(document.getElementById('m-file').files || []);
+      const existing = editId ? [...retainedImages] : [];
+      const btn = document.getElementById('saveMemoryBtn');
+      savingMemory = true;
+      const controls = Array.from(document.querySelectorAll('#addModal button, #addModal input, #addModal textarea'));
+      controls.forEach(el => el.disabled = true);
+      btn.textContent = 'Kaydediliyor…';
+      try {
+        const added = files.length ? await processMultipleImages(files) : [];
+        const images = [...existing, ...added];
+        if (!images.length) images.push(...["data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='400' height='200' fill='%231e293b'/%3E%3Cpath d='M200 70 C 200 70, 160 30, 120 70 C 80 110, 200 180, 200 180 C 200 180, 320 110, 280 70 C 240 30, 200 70, 200 70 Z' fill='%23e11d48' opacity='0.7'/%3E%3C/svg%3E"]);
+        payload.img = images[0];
+        payload.imgs = images;
+        if (editId) {
+          await updateDoc(doc(db, 'memories', editId), payload);
+          const updated = { ...(memories.find(m => m.id === editId) || activeMemoryObj), ...payload, id: editId };
+          savingMemory = false;
+          window.closeModal();
+          window.showCard(updated);
+        } else {
+          await addDoc(collection(db, 'memories'), { ...payload, timestamp: Date.now() });
+          savingMemory = false;
           window.closeModal();
           triggerConfetti();
-        } catch(e) { alert("Kayıt hatası: " + e.message); }
-      };
-
-      if (fileInput.files && fileInput.files[0]) {
-        processMultipleImages(fileInput.files, finalizeSave);
-      } else {
-        finalizeSave(["data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='400' height='200' fill='%231e293b'/%3E%3Cpath d='M200 70 C 200 70, 160 30, 120 70 C 80 110, 200 180, 200 180 C 200 180, 320 110, 280 70 C 240 30, 200 70, 200 70 Z' fill='%23e11d48' opacity='0.7'/%3E%3C/svg%3E"]);
+        }
+      } catch (e) {
+        alert('Kayıt hatası: ' + e.message);
+      } finally {
+        savingMemory = false;
+        controls.forEach(el => el.disabled = false);
+        btn.textContent = editingMemoryId ? 'Değişiklikleri Kaydet' : 'Haritaya Ekle';
       }
     };
 
@@ -1505,13 +1613,23 @@
     };
 
     map.on('click', e => {
-      if (!addMode) return;
+      if (!addMode || savingMemory) return;
+      window.closeModal();
       tempCoords = e.latlng;
       document.getElementById('addModal').style.display = 'flex';
       window.toggleAddMode();
     });
 
     window.closeModal = function() {
+      if (savingMemory) return;
+      editingMemoryId = null;
+      retainedImages = [];
+      tempCoords = null;
+      window.renderExistingPhotos();
+      window.selectType('memory');
+      document.getElementById('memoryFormTitle').textContent = 'Bu Noktayı Ölümsüzleştir';
+      document.getElementById('saveMemoryBtn').textContent = 'Haritaya Ekle';
+      document.getElementById('fileCountHint').textContent = '';
       document.getElementById('addModal').style.display = 'none';
       document.getElementById('m-title').value = '';
       document.getElementById('m-city').value = '';
@@ -1531,25 +1649,28 @@
       confetti({ particleCount: 35, spread: 60, origin: { y: 0.7 }, colors: ['#f43f5e', '#ea580c', '#fb7185'] });
     }
 
-    function processMultipleImages(files, cb) {
-      const results = []; let count = 0;
-      Array.from(files).forEach((f, i) => {
+    function processMultipleImages(files) {
+      return Promise.all(Array.from(files).map(f => new Promise((resolve, reject) => {
+        if (!f.type.startsWith('image/')) return reject(new Error('Lütfen yalnızca fotoğraf seçin.'));
         const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Fotoğraf okunamadı. Lütfen yeniden seçin.'));
         reader.onload = e => {
           const img = new Image();
+          img.onerror = () => reject(new Error('Fotoğraf açılamadı. JPG veya PNG biçimini deneyin.'));
           img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let w = img.width, h = img.height;
-            if (w > 800) { h = Math.round((h * 800) / w); w = 800; }
-            canvas.width = w; canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            results[i] = canvas.toDataURL('image/jpeg', 0.72);
-            if (++count === files.length) cb(results);
+            try {
+              const canvas = document.createElement('canvas');
+              let w = img.width, h = img.height;
+              if (w > 800) { h = Math.round((h * 800) / w); w = 800; }
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', 0.72));
+            } catch (err) { reject(err); }
           };
           img.src = e.target.result;
         };
         reader.readAsDataURL(f);
-      });
+      })));
     }
 
     let storyIdx = 0;
@@ -1558,6 +1679,7 @@
       if (storyIdx >= memories.length) storyIdx = 0;
       window.showCard(memories[storyIdx++]);
     };
+    window.retryMemoryLoad();
   </script>
 </body>
 </html>
